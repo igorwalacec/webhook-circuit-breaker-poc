@@ -1,0 +1,86 @@
+version: '3.4'
+
+services:
+  elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+      ports:
+        - "9200:9200"
+        - "9300:9300"
+      environment:
+        - discovery.type=single-node
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.10.2
+    ports:
+      - "5601:5601"
+    links:
+      - elasticsearch
+    depends_on:
+      - elasticsearch
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:7.10.2
+    ports:
+      - "8200:8200"    
+    depends_on:
+      - elasticsearch
+    links:
+      - elasticsearch
+      - kibana
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+  rabbit:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    networks: 
+      - kafka
+    ports:
+      - 2181:2181  
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ALLOW_ANONYMOUS_LOGIN: 'yes'
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka
+    container_name: kafka
+    networks: 
+      - kafka    
+    ports:
+      - 9092:9092
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+  kafka_ui:  
+    image: tchiotludo/akhq
+    container_name: kafka_ui
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            localhost:
+              properties:
+                bootstrap.servers: "kafka:29092"
+    networks:
+      - kafka
+    ports:
+      - 8080:8080      
+networks:
+  kafka:
+    driver: bridge
